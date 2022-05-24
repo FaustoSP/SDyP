@@ -19,13 +19,13 @@ double dwalltime()
 //TODO: optimizar inicialización de la matriz (j primero, creo?)
 //Inicializa una matriz
 float* inicializarMatriz(float* m,unsigned long N){
-	for(int i=0;i<N;i++){
+    for(int i=0;i<N;i++){
         for(int j=0;j<N;j++){
-	        m[i*N+j]=((float)rand())/RAND_MAX;
+            m[i*N+j]=((float)rand())/(float)RAND_MAX;
             //printf("m[%i,%i]: %.2f\n", i, j, m[i*N+j]);
         }
     }
-	return m;
+    return m;
 }
 
 int main(int argc, char* argv[]){
@@ -36,14 +36,9 @@ int main(int argc, char* argv[]){
         exit(1);
     }
 
-    srand(time(0));
-
     double timetick;
 
-    //Constantes de multiplicación para optimizar los cálculos
-    float unSexto = 1.0/6.0;
-    float unNoveno = 1.0/9.0;
-
+    float* swap;
     float* mSec;
     float* mSecConvergido;
     float* vPar;
@@ -58,39 +53,85 @@ int main(int argc, char* argv[]){
 
     //Se inicializan las matrices
     mSec=(float*)malloc(numBytes);
-	mSec=inicializarMatriz(mSec,N);
+    mSec=inicializarMatriz(mSec,N);
 
     mSecConvergido=(float*)malloc(numBytes);
 
     bool firstTime = true;
     timetick = dwalltime();
+    float unCuarto = 1./4.0;
+    float unSexto = 1./6.0;   
+    float unNoveno = 1./9.0;
+    register float valorAComparar;
     while(!convergio){
         iteraciones++;
 
         //La posicion de un valor de la matriz se calcula como i*N+j
 
         //Primero se calcula el valor de las esquinas. Notese que le indice maximo para cada variable es N-1, no N.
-        mSecConvergido[0] = ((mSec[0] + mSec[1] + mSec[N] + mSec[N+1]) * 0.25); //Esquina superior izquierda (0,0).
-        mSecConvergido[N-1] = ((mSec[(N-2*N)] + mSec[(N-1)*N] + mSec[(N-2)*N+1] + mSec[(N-1)*N+1]) * 0.25); //Esquina superior derecha (0,N-1).
-        mSecConvergido[(N-1)*N] = ((mSec[N-2] + mSec[N+N-2] + mSec[N-1] + mSec[N+N-1]) * 0.25); //Esquina inferior izquierda (N-1,0).
-        mSecConvergido[(N-1)*N+N-1] = ((mSec[(N-2)*N+N-2] + mSec[(N-1)*N+N-2] + mSec[(N-2)*N+N-1] + mSec[(N-1)*N+N-1]) * 0.25); //Esquina inferior derecha (N-1,N-1)
+        //Esquina superior izquierda (0,0).
+        mSecConvergido[0] = ((
+            mSec[0] +
+            mSec[1] +
+            mSec[N] +
+            mSec[N+1]) * unCuarto);
+        
+        //Esquina superior derecha (0,N-1).
+        mSecConvergido[N-1] = ((
+            mSec[N-1] + 
+            mSec[N-2] + 
+            mSec[(2*N)-1] + 
+            mSec[(2*N)-2]) * unCuarto);
+
+        //Esquina inferior izquierda (N-1,0).
+        mSecConvergido[(N-1)*N] = ((
+            mSec[(N-1)*N] + 
+            mSec[(N-1)*N+1] + 
+            mSec[(N-2)*N] + 
+            mSec[(N-2)*N+1]) * unCuarto);
+
+        //Esquina inferior derecha (N-1,N-1)
+        mSecConvergido[N*N -1] = ((
+            mSec[N*N -1] + 
+            mSec[N*N -2] + 
+            mSec[(N-1)*N -1] + 
+            mSec[(N-1)*N -2]) * unCuarto);
 
         //Luego se calcula el valor de los bordes, menos las esquinas.
-        //Borde superior, 1<i<N y j=0
-        for(i=1;i<N-1;i++){
-            mSecConvergido[i*N] = ((mSec[(i-1)*N] + mSec[i*N] + mSec[(i+1)*N] + mSec[(i-1)*N+1] + mSec[i*N+1] + mSec[(i+1)*N+1]) * unSexto);
-        }
-        //Borde inferior, 1<i<N y j=N-1
-        for(i=1;i<N-1;i++){
-            mSecConvergido[i*N+N-1] = ((mSec[(i-1)*N+N-2] + mSec[i*N+N-2] + mSec[(i+1)*N+N-2] + mSec[(i-1)*N+N-1] + mSec[i*N+N-1] + mSec[(i+1)*N+N-1]) * unSexto);
-        }
-        //Borde izquierdo, i=0, 1<j<N
         for(j=1;j<N-1;j++){
-            mSecConvergido[j] = ((mSec[j-1] + mSec[j] + mSec[j+1] + mSec[N+j-1] + mSec[N+j] + mSec[N+j+1]) * unSexto);
+            mSecConvergido[j]=(
+                mSec[j] +
+                mSec[j-1] +
+                mSec[j+1] +
+                mSec[j+N] +
+                mSec[j+N+1] +
+                mSec[j+N-1]) * unSexto;
+
+            mSecConvergido[N*(N-1)+j]=(
+                mSec[N*(N-1)+j] +
+                mSec[N*(N-1)+j-1] +
+                mSec[N*(N-1)+j+1] +
+                mSec[N*(N-2)+j] +
+                mSec[N*(N-2)+j+1] +
+                mSec[N*(N-2)+j-1]) * unSexto;    
         }
-        //Borde derecho, i=N-1, 1<j<N
-        for(j=1;j<N-1;j++){
-            mSecConvergido[(N-1)*N+j] = ((mSec[(N-2)*N+j-1] + mSec[(N-2)*N+j] + mSec[(N-2)*N+j+1] + mSec[(N-1)*N+j-1] + mSec[(N-1)*N+j] + mSec[(N-1)*N+j+1]) * unSexto);
+
+        for(i=1;i<N-1;i++){
+            mSecConvergido[i*N] = (
+                mSec[i*N] +
+                mSec[i*N+1] +
+                mSec[(i-1)*N] +
+                mSec[(i-1)*N+1] +
+                mSec[(i+1)*N] +
+                mSec[(i+1)*N+1]) * unSexto;
+
+            mSecConvergido[i*N+(N-1)] = (
+                mSec[i*N+(N-1)] +
+                mSec[i*N+(N-1)-1] +
+                mSec[(i-1)*N+(N-1)] +
+                mSec[(i-1)*N+(N-1)-1] +
+                mSec[(i+1)*N+(N-1)] +
+                mSec[(i+1)*N+(N-1)-1]) * unSexto;
         }
 
         //Luego se calcula el promedio de la matriz interna, para 1<i<N-1, 1<j<N-1
@@ -108,35 +149,32 @@ int main(int argc, char* argv[]){
                     mSec[(i+1)*N+j+1]
                 ) * unNoveno ;
             }
-	    }
+        }
 
         //para debugear, borrar despues
-        /*
-        if(firstTime){
-        for(int i=0;i<N;i++){
-            for(int j=0;j<N;j++){
-                printf("mSecConv[%i,%i]: %.2f\n", i, j, mSecConvergido[i*N+j]);
+        /*if(firstTime){
+            for(int i=0;i<N;i++){
+                for(int j=0;j<N;j++){
+                    printf("mSecConv[%i,%i]: %.2f\n", i, j, mSecConvergido[i*N+j]);
+                }
             }
+            //firstTime = false;
         }
-        firstTime = false;}
         */
-        
 
         //Se evalúa si todos los valores del vector convergieron.
         convergio = true;
-        mSec[0] = mSecConvergido[0];
-        for(int i=0;i<N;i++){
-            for(int j=0;j<N;j++){
-                //printf("m[%i]: %.2f\n",i*N+j, mSecConvergido[i*N+j]);
-                mSec[i*N+j] = mSecConvergido[i*N+j];
-                //Si algún valor no estuviera por debajo del límite de precisión, se copia el valor del vector actual al original
-                //printf("m[%lu]: %.2f\n",i*N+j, fabs(mSecConvergido[0] - mSecConvergido[i*N+j]));
-                if(!(fabs(mSecConvergido[0] - mSecConvergido[i*N+j])<0.01)){
-                    convergio = false;
-                    if(iteraciones%5000 == 0){
-                        printf("Pos [%i,%i] no convergio: %.2f\n", i, j, mSecConvergido[i*N+j]);
-                    }
-                }
+        valorAComparar = mSecConvergido[0];
+        for(int i=1;i<N*N & convergio;i++){
+            //printf("m[%i]: %.2f\n",i*N+j, mSecConvergido[i*N+j]);
+            //mSec[i*N+j] = mSecConvergido[i*N+j];
+            //Si algún valor no estuviera por debajo del límite de precisión, se copia el valor del vector actual al original
+            //printf("m[%lu]: %.2f\n",i*N+j, fabs(mSecConvergido[0] - mSecConvergido[i*N+j]));
+            if(!(fabs(valorAComparar - mSecConvergido[i])<0.01)){
+                convergio = false;
+                swap = mSec;
+                mSec = mSecConvergido;
+                mSecConvergido = swap;
             }
         }
     }
