@@ -23,7 +23,7 @@ float* inicializarVector(float* v,unsigned long N){
 	for(int j=0;j<N;j++){
         //Genera un numero "aleatorio" entre 1 y 10
         //No se está usando srand() con una semilla, por tanto siempre retorna los mismos números, pero los vectores siguen siendo distintos.
-		v[j]= ((float)rand())/RAND_MAX;
+		v[j] = ((float)rand())/RAND_MAX;
         //printf("%.2f\n", v[j]);
 	}
 	//printf("------------------------------\n");
@@ -46,6 +46,7 @@ int main(int argc, char* argv[]){
     
     double timetick;
 
+    float* swap;
     float* vSec;
     float* vSecConvergido;
     float* vPar;
@@ -56,6 +57,7 @@ int main(int argc, char* argv[]){
     
     //Se almacena el resultado de esta operación para no tener que repetirla cada iteración
     float unTercio = 1.0/3.0;
+    register float valorAComparar;
 
     //Se reserva memoria para los vectores
     vSec=(float*)malloc(numBytes);
@@ -85,61 +87,68 @@ int main(int argc, char* argv[]){
 	    }
 
         convergio = true;
-        vSec[0] = vSecConvergido[0];
+        valorAComparar = vSecConvergido[0];
         //Se evalúa si todos los valores del vector convergieron. Se saltea la primera posición dado que esa se toma como el valor de convergencia.
-        for(i=1;i<N;i++){
-            vSec[i] = vSecConvergido[i];
+        for(i=1;i<N & convergio;i++){
             //printf("v[0]: %.2f\n", fabs(vSecConvergido[0] - vSecConvergido[i]));
-            if(!(fabs(vSecConvergido[0] - vSecConvergido[i])<0.01)){
+            if(!(fabs(valorAComparar - vSecConvergido[i])<0.01)){
                 convergio = false;
+                swap = vSec;
+                vSec = vSecConvergido;
+                vSecConvergido = swap;
             }
         }
         //printf("v[0]: %.2f\n", vSecConvergido[0]);
     }
     //TODO: calcular tiempo
-    printf("Usando la estrategia secuencial, convergio al valor: %.2f en %i iteraciones que tomaron %f segundos\n", vSecConvergido[0], iteraciones, dwalltime() - timetick);
+    printf("Usando la estrategia secuencial en una dimension, convergio al valor: %.2f en %i iteraciones que tomaron %f segundos\n", vSecConvergido[0], iteraciones, dwalltime() - timetick);
 
     //ESTRATEGIA DE RESOLUCION PARALELA:
     //Calcular promedio -> barrera -> chequear convergencia
 
     convergio = false;
-    //TODO: pensar que scheduler usar
+    iteraciones = 0;
     timetick = dwalltime();
-    //Los hilos solo se deben generar una vez, usar solamente un parallel.
     while(!convergio){
         vParConvergido[0] = ((vPar[0] + vPar[1]) * 0.5);
         vParConvergido[N-1] = ((vPar[N - 1] + vPar[N - 2]) * 0.5);
+        iteraciones++;
 
-        //TODO: cada hilo va a comparar su parte con v[0], entonces esta es una variable que comparten todos.
-        #pragma omp parallel private(i) shared(vPar, vParConvergido) num_threads(numThreads)
+        //TODO: pensar que scheduler usar
+        //Al momento de subir al cluster, recordar borrar num_threads() ya que se usa la variable del sistema.
+        //Si private(i) ya está en el parallel, en el for es redundante
+        #pragma omp parallel private(i) shared(vPar, vParConvergido)
         {
-            #pragma omp for private(i)
+            #pragma omp for
             for(i=1;i<N-1;i++){
                 vParConvergido[i] = ((vPar[i - 1] + vPar[i] + vPar[i+1]) * unTercio);
                 //printf("vParConv[%i] = %f\n", i, vParConvergido[i]);
             }
-
-            //Hace falta esta barrera? single tiene una implícita al final, pero no antes. Puede ser que vParConvergido[0] no esté calculado
-            #pragma omp barrier
+            
             #pragma omp single
             {
                 convergio = true;
-                vPar[0] = vParConvergido[0];
+                valorAComparar = vParConvergido[0];
             }
             
             //Se evalúa si todos los valores del vector convergieron. Se saltea la primera posición dado que esa se toma como el valor de convergencia.
-            #pragma omp for private(i)
+            //Se utiliza la directiva de reduccion para que al final de la seccion paralela se realize una operacion AND sobre la variable booleana de convergencia.
+            #pragma omp for reduction(&& : convergio)
+            //for(int i=1;i<N*N & convergio;i++) tira invalid controller predicate con pragma omp
+            //tampoco puedo usar un break
             for(i=1;i<N;i++){
-                vPar[i] = vParConvergido[i];
                 //printf("v[0]: %.2f\n", fabs(vSecConvergido[0] - vSecConvergido[i]));
                 if(!(fabs(vParConvergido[0] - vParConvergido[i])<0.01)){
                     convergio = false;
+                    swap = vPar;
+                    vPar = vParConvergido;
+                    vParConvergido = swap;
                 }
             }
         }
         //printf("v[0]: %.2f\n", vSecConvergido[0]);
     }
-    printf("Usando la estrategia paralela, convergio al valor: %.2f en X iteraciones que tomaron %f segundos\n", vParConvergido[0], dwalltime() - timetick);
+    printf("Usando la estrategia paralela en una dimension, convergio al valor: %.2f en %i iteraciones que tomaron %f segundos\n", vParConvergido[0], iteraciones, dwalltime() - timetick);
 
 
     return 0;
