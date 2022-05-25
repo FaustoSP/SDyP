@@ -58,63 +58,61 @@ int main(int argc, char* argv[]){
     MPI_Comm_rank( MPI_COMM_WORLD, &myrank );
 
     if(myrank == 0){
-    int i, iteraciones = 0;
-    bool convergio = false;
-    
-    //Se almacena el resultado de esta operación para no tener que repetirla cada iteración
-    float unTercio = 1.0/3.0;
+        int i, iteraciones = 0;
+        bool convergio = false;
+        
+        //Se almacena el resultado de esta operación para no tener que repetirla cada iteración
+        float unTercio = 1.0/3.0;
 
-    //Se reserva memoria para los vectores
-    vSec=(float*)malloc(numBytes);
-    vSecConvergido=(float*)malloc(numBytes);
-    vPar=(float*)malloc(numBytes);
-    vParConvergido=(float*)malloc(numBytes);
-    
-    //Se inicializan los vectores
-    vSec=inicializarVector(vSec,N);
-    //Para poder hacer una comparación apropiada, ambas estrategias van a trabajar sobre el mismo set de datos
-    for(i=0;i<N;i++){
-        vPar[i] = vSec[i];
-    }
-    
-    //Resolución secuencial
-    //Se evita encapsular secciones de código como funciones para optimizar el tiempo de procesamiento.
-    timetick = dwalltime();
-    while(!convergio){
-        iteraciones++;
-
-        //Se calcula el promedio entre cada valor y sus vecinos
-        vSecConvergido[0] = ((vSec[0] + vSec[1]) * 0.5);
-        vSecConvergido[N-1] = ((vSec[N - 1] + vSec[N - 2]) * 0.5);
-        for(i=1;i<N-1;i++){
-            vSecConvergido[i] = ((vSec[i - 1] + vSec[i] + vSec[i+1]) * unPercio);
-            //printf("%.2f\n", vSecConvergido[i]); TODO: borrar
-	    }
-
-        convergio = true;
-        vSec[0] = vSecConvergido[0];
-        //Se evalúa si todos los valores del vector convergieron. Se saltea la primera posición dado que esa se toma como el valor de convergencia.
-        for(i=1;i<N;i++){
-            vSec[i] = vSecConvergido[i];
-            //printf("v[0]: %.2f\n", fabs(vSecConvergido[0] - vSecConvergido[i]));
-            if(!(fabs(vSecConvergido[0] - vSecConvergido[i])<0.01)){
-                convergio = false;
-            }
+        //Se reserva memoria para los vectores
+        vSec=(float*)malloc(numBytes);
+        vSecConvergido=(float*)malloc(numBytes);
+        vPar=(float*)malloc(numBytes);
+        vParConvergido=(float*)malloc(numBytes);
+        
+        //Se inicializan los vectores
+        vSec=inicializarVector(vSec,N);
+        //Para poder hacer una comparación apropiada, ambas estrategias van a trabajar sobre el mismo set de datos
+        for(i=0;i<N;i++){
+            vPar[i] = vSec[i];
         }
-        //printf("v[0]: %.2f\n", vSecConvergido[0]);
+        
+        //Resolución secuencial
+        //Se evita encapsular secciones de código como funciones para optimizar el tiempo de procesamiento.
+        timetick = dwalltime();
+        while(!convergio){
+            iteraciones++;
+
+            //Se calcula el promedio entre cada valor y sus vecinos
+            vSecConvergido[0] = ((vSec[0] + vSec[1]) * 0.5);
+            vSecConvergido[N-1] = ((vSec[N - 1] + vSec[N - 2]) * 0.5);
+            for(i=1;i<N-1;i++){
+                vSecConvergido[i] = ((vSec[i - 1] + vSec[i] + vSec[i+1]) * unPercio);
+                //printf("%.2f\n", vSecConvergido[i]); TODO: borrar
+            }
+
+            convergio = true;
+            vSec[0] = vSecConvergido[0];
+            //Se evalúa si todos los valores del vector convergieron. Se saltea la primera posición dado que esa se toma como el valor de convergencia.
+            for(i=1;i<N;i++){
+                vSec[i] = vSecConvergido[i];
+                //printf("v[0]: %.2f\n", fabs(vSecConvergido[0] - vSecConvergido[i]));
+                if(!(fabs(vSecConvergido[0] - vSecConvergido[i])<0.01)){
+                    convergio = false;
+                }
+            }
+            //printf("v[0]: %.2f\n", vSecConvergido[0]);
+        }
+        
+        printf("Usando la estrategia secuencial, convergio al valor: %.2f en %i iteraciones que tomaron %f segundos\n", vSecConvergido[0], iteraciones, dwalltime() - timetick);
     }
-    //TODO: calcular tiempo
-    printf("Usando la estrategia secuencial, convergio al valor: %.2f en %i iteraciones que tomaron %f segundos\n", vSecConvergido[0], iteraciones, dwalltime() - timetick);
-    }
-    //ESTRATEGIA DE RESOLUCION PARALELA:
-    //Calcular promedio -> barrera -> chequear convergencia
 
     convergio = false;
-    timetick = dwalltime();
     float *vProm, *vResP,*buf = &vSec;
     vProm = (float)malloc(sizeof(float)*N/P); //Seccion del vector que trabajara cada proceso
     vResP = (float)malloc(sizeof(float)*N/P); //Vector de promedios de la seccion de cada proceso
-        
+
+    timetick = dwalltime();    
 
     while(!convergio){
         int i;
