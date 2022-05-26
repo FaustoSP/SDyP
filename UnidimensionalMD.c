@@ -107,8 +107,10 @@ int main(int argc, char* argv[]){
         printf("Usando la estrategia secuencial, convergio al valor: %.2f en %i iteraciones que tomaron %f segundos\n", vSecConvergido[0], iteraciones, dwalltime() - timetick);
     }
 
+    //PROCESAMIENTO PARALELO CON MPI
+
     convergio = false;
-    float *vProm, *vResP;
+    float *vProm, *vResP, refConv;
     
     //Seccion del vector que trabajara cada proceso
     if(myrank == 0 || myrank == P-1)
@@ -179,6 +181,19 @@ int main(int argc, char* argv[]){
 
         MPI_Gather(vResP,N/P,MPI_FLOAT,vSec,N,MPI_FLOAT,0,MPI_COMM_WORLD);
 
+        refConv = vSec[0]; //Se obtiene el promedio de la posición 0 para comparar
+
+        MPI_Bcast(&refConv,1,MPI_UNSIGNED,0,MPI_COMM_WORLD); //Se reparte entre los procesos
+
+        convergio = true;
+            
+        for(i=0;(i<N/P)||!convergio;i++){
+            convergio = (fabs(refConv-vRes[i])<0.01);
+        }
+
+        MPI_Bcast(&convergio,1,MPI_UNSIGNED,0,MPI_COMM_WORLD); //Actualiza variable "convergio" en todos los procesos
+
+        /*
         if(myrank == 0){
             convergio = true;
             
@@ -188,6 +203,7 @@ int main(int argc, char* argv[]){
 
             MPI_Bcast(&convergio,1,MPI_UNSIGNED,0,MPI_COMM_WORLD); //Actualiza variable "convergio" en todos los procesos
         }
+        */
         
         MPI_Barrier(MPI_COMM_WORLD);
     }
