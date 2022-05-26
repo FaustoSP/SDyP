@@ -108,39 +108,43 @@ int main(int argc, char* argv[]){
     }
 
     convergio = false;
-    float *vProm, *vResP,*buf = &vSec;
+    float *vProm, *vResP;
     vProm = (float)malloc(sizeof(float)*N/P); //Seccion del vector que trabajara cada proceso
     vResP = (float)malloc(sizeof(float)*N/P); //Vector de promedios de la seccion de cada proceso
+
+    if(myrank == 0){
+        vSec = inicializarVector(); //Se vuelve a inicializar el vector
+    }
 
     timetick = dwalltime();    
 
     while(!convergio){
         int i;
 
-        MPI_Scatter(buf,N,MPI_FLOAT,vProm,N/P,MPI_FLOAT,0,MPI_COMM_WORLD);
+        MPI_Scatter(vSec,N,MPI_FLOAT,vProm,N/P,MPI_FLOAT,0,MPI_COMM_WORLD);
 
         for(i=1;i<N/P-1;i++)
-                vResP[i] = (vProm[i-1]+vProm[i]+vProm[i+1])/3;
+                vResP[i] = (vProm[i-1]+vProm[i]+vProm[i+1])*unTercio;
 
         if(myrank == 0)
             vResP[0] = (vProm[0]+vProm[1])*0.5; 
         else if(myrank > 0)
-            vResP[0] = (vSec[myrank*N/P-1]+vProm[0]+vProm[1])/3;
+            vResP[0] = (vSec[myrank*N/P-1]+vProm[0]+vProm[1])*unTercio;
 
         if(myrank < P)
-            vResP[N/P] = (vProm[N/P-1]+vProm[N/P]+vSec[myrank*(N/P+1)])/3; //Consultar
+            vResP[N/P] = (vProm[N/P-1]+vProm[N/P]+vSec[myrank*(N/P+1)])*unTercio; //Consultar
         
         if(myrank == P)
             vResP[N/P] = (vProm[N/P-1]+vProm[N/P])*0.5;
 
         MPI_Barrier(MPI_COMM_WORLD);
 
-        MPI_Gather(vRes,N/P,MPI_FLOAT,buf,MPI_FLOAT,0,MPI_COMM_WORLD);
+        MPI_Gather(vResP,N/P,MPI_FLOAT,buf,MPI_FLOAT,0,MPI_COMM_WORLD);
 
         if(myrank == 0){
             convergio = true;
             for(i=0;(i<N)||!convergio;i++){
-                convergio = (fabs(buf[0]-buf[i])<0.01);
+                convergio = (fabs(vSec[0]-vSec[i])<0.01);
             }
 
             MPI_Bcast(&convergio,1,MPI_UNSIGNED,0,MPI_COMM_WORLD); //Actualiza variable "convergio" en todos los procesos
