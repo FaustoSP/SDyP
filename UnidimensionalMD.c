@@ -177,8 +177,7 @@ int main(int argc, char* argv[]){
         
         MPI_Barrier(MPI_COMM_WORLD);
 
-        MPI_Gatherv(vResP,reparto,despl,MPI_FLOAT,buf,N,MPI_FLOAT,0,MPI_COMM_WORLD);
-        //MPI_Gather(vResP,N/P,MPI_FLOAT,buf,N,MPI_FLOAT,0,MPI_COMM_WORLD); //Sustituit con Gatherv
+        MPI_Gather(vResP,N/P,MPI_FLOAT,vSec,N,MPI_FLOAT,0,MPI_COMM_WORLD);
 
         if(myrank == 0){
             convergio = true;
