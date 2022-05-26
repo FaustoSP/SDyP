@@ -109,8 +109,33 @@ int main(int argc, char* argv[]){
 
     convergio = false;
     float *vProm, *vResP;
-    vProm = (float)malloc(sizeof(float)*N/P); //Seccion del vector que trabajara cada proceso
-    vResP = (float)malloc(sizeof(float)*N/P); //Vector de promedios de la seccion de cada proceso
+    
+    //Seccion del vector que trabajara cada proceso
+    if(myrank == 0 || myrank == P-1)
+        vProm = (*float)malloc(sizeof(float)*(N/P+1); //Variable para los fragmentos extremos del vector
+    else
+        vProm = (*float)malloc(sizeof(float)*(N/P+2); //Variable para los fragmentos internos del vector
+
+    vResP = (*float)malloc(sizeof(float)*N/P); //Vector de promedios de la seccion de cada proceso
+
+    //Se fija la cantidad de elementos a repartir por proceso
+    if(P > 1){
+        int j;
+        int *reparto = (*int)malloc(sizeof(int)*P); //Vector con cantidad de elementos repartidos a cada proceso
+        int *despl = (*int)malloc(sizeof(int)*P); //Vector que indica el desplazamiento desde la primera posicion del proceso anterior al siguiente
+
+        reparto[0] = N/P+1;
+        reparto[P-1] = N/P+1;
+
+        despl[0] = 0;
+        despl[P-1] = N/P;
+
+        for(j = 1;j < P-2;j++){
+            reparto[j] = N/P+2;
+            despl[i] = N/P+1;
+        }
+
+    }
 
     if(myrank == 0){
         vSec = inicializarVector(); //Se vuelve a inicializar el vector
@@ -121,29 +146,44 @@ int main(int argc, char* argv[]){
     while(!convergio){
         int i;
 
-        MPI_Scatter(vSec,N,MPI_FLOAT,vProm,N/P,MPI_FLOAT,0,MPI_COMM_WORLD);
+        MPI_Scatterv(vSec,reparto,despl,MPI_FLOAT,vProm,N,MPI_FLOAT,0,MPI_COMM_WORLD);
+
+        //MPI_Scatter(vSec,N,MPI_FLOAT,vProm,N,MPI_FLOAT,0,MPI_COMM_WORLD); //Sustituir con Scatterv
 
         for(i=1;i<N/P-1;i++)
                 vResP[i] = (vProm[i-1]+vProm[i]+vProm[i+1])*unTercio;
 
-        if(myrank == 0)
+        if(myrank == 0){
+
+            //Si se trata del proceso 0, por lo que tiene la esquina izquierda
             vResP[0] = (vProm[0]+vProm[1])*0.5; 
-        else if(myrank > 0)
-            vResP[0] = (vSec[myrank*N/P-1]+vProm[0]+vProm[1])*unTercio;
+        }
+        else if(myrank > 0){
 
-        if(myrank < P)
-            vResP[N/P] = (vProm[N/P-1]+vProm[N/P]+vSec[myrank*(N/P+1)])*unTercio; //Consultar
-        
-        if(myrank == P)
+            //Si se trata de un proceso sin la esquina izquierda
+            vResP[0] = (vProm[0]+vProm[1]+vProm[2])*unTercio;
+        }
+
+        if(myrank < P){
+
+            //Si se trata de un proceso sin esquina derecha
+            vResP[N/P] = (vProm[N/P-1]+vProm[N/P]+vProm[N/P+1])*unTercio;
+        }
+        else if(myrank == P){
+
+            //Si se trata del proceso P, que tiene la esquina derecha
             vResP[N/P] = (vProm[N/P-1]+vProm[N/P])*0.5;
-
+        }
+        
         MPI_Barrier(MPI_COMM_WORLD);
 
-        MPI_Gather(vResP,N/P,MPI_FLOAT,buf,MPI_FLOAT,0,MPI_COMM_WORLD);
+        MPI_Gatherv(vResP,reparto,despl,MPI_FLOAT,buf,N,MPI_FLOAT,0,MPI_COMM_WORLD);
+        //MPI_Gather(vResP,N/P,MPI_FLOAT,buf,N,MPI_FLOAT,0,MPI_COMM_WORLD); //Sustituit con Gatherv
 
         if(myrank == 0){
             convergio = true;
-            for(i=0;(i<N)||!convergio;i++){
+            
+            for(i=0;(i<N/P)||!convergio;i++){
                 convergio = (fabs(vSec[0]-vSec[i])<0.01);
             }
 
