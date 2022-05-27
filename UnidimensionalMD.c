@@ -3,7 +3,7 @@
 #include <sys/time.h>
 #include <stdbool.h>
 #include <math.h>
-#include <mpi>
+#include <mpi.h>
 
 //Toma demasiadas iteraciones, hay algo que no está andando mal
 
@@ -53,16 +53,20 @@ int main(int argc, char* argv[]){
     float* vPar;
     float* vParConvergido;
 
+    int *reparto = (int*)malloc(sizeof(int)*P); //Vector con cantidad de elementos repartidos a cada proceso
+    int *despl = (int*)malloc(sizeof(int)*P); //Vector que indica el desplazamiento desde la primera posicion del proceso anterior al siguiente
+
+    //Se almacena el resultado de esta operación para no tener que repetirla cada iteración
+    float unTercio = 1.0/3.0;
+
+    bool convergio = false;
+
     MPI_Status status;
     MPI_Init( &argc, &argv );
     MPI_Comm_rank( MPI_COMM_WORLD, &myrank );
 
     if(myrank == 0){
         int i, iteraciones = 0;
-        bool convergio = false;
-        
-        //Se almacena el resultado de esta operación para no tener que repetirla cada iteración
-        float unTercio = 1.0/3.0;
 
         //Se reserva memoria para los vectores
         vSec=(float*)malloc(numBytes);
@@ -87,7 +91,7 @@ int main(int argc, char* argv[]){
             vSecConvergido[0] = ((vSec[0] + vSec[1]) * 0.5);
             vSecConvergido[N-1] = ((vSec[N - 1] + vSec[N - 2]) * 0.5);
             for(i=1;i<N-1;i++){
-                vSecConvergido[i] = ((vSec[i - 1] + vSec[i] + vSec[i+1]) * unPercio);
+                vSecConvergido[i] = ((vSec[i - 1] + vSec[i] + vSec[i+1]) * unTercio);
                 //printf("%.2f\n", vSecConvergido[i]); TODO: borrar
             }
 
@@ -110,21 +114,23 @@ int main(int argc, char* argv[]){
     //PROCESAMIENTO PARALELO CON MPI
 
     convergio = false;
-    float *vProm, *vResP, refConv;
+    float *vProm;
+    float *vResP;
+
+    float valorAComparar; //contiene el valor de convergencia
     
     //Seccion del vector que trabajara cada proceso
     if(myrank == 0 || myrank == P-1)
-        vProm = (*float)malloc(sizeof(float)*(N/P+1); //Variable para los fragmentos extremos del vector
+        vProm = (float*)malloc(sizeof(float)*(N/P+1)); //Variable para los fragmentos extremos del vector
     else
-        vProm = (*float)malloc(sizeof(float)*(N/P+2); //Variable para los fragmentos internos del vector
+        vProm = (float*)malloc(sizeof(float)*(N/P+2)); //Variable para los fragmentos internos del vector
 
-    vResP = (*float)malloc(sizeof(float)*N/P); //Vector de promedios de la seccion de cada proceso
+    vResP = (float*)malloc(sizeof(float)*N/P); //Vector de promedios de la seccion de cada proceso
 
     //Se fija la cantidad de elementos a repartir por proceso
     if(P > 1){
+        int i;
         int j;
-        int *reparto = (*int)malloc(sizeof(int)*P); //Vector con cantidad de elementos repartidos a cada proceso
-        int *despl = (*int)malloc(sizeof(int)*P); //Vector que indica el desplazamiento desde la primera posicion del proceso anterior al siguiente
 
         reparto[0] = N/P+1;
         reparto[P-1] = N/P+1;
@@ -140,7 +146,7 @@ int main(int argc, char* argv[]){
     }
 
     if(myrank == 0){
-        vSec = inicializarVector(); //Se vuelve a inicializar el vector
+        vSec = inicializarVector(vSec,N); //Se vuelve a inicializar el vector
     }
 
     timetick = dwalltime();    
@@ -181,14 +187,14 @@ int main(int argc, char* argv[]){
 
         MPI_Gather(vResP,N/P,MPI_FLOAT,vSec,N,MPI_FLOAT,0,MPI_COMM_WORLD);
 
-        refConv = vSec[0]; //Se obtiene el promedio de la posición 0 para comparar
+        valorAComparar = vSec[0]; //Se obtiene el promedio de la posición 0 para comparar
 
-        MPI_Bcast(&refConv,1,MPI_UNSIGNED,0,MPI_COMM_WORLD); //Se reparte entre los procesos
+        MPI_Bcast(&valorAComparar,1,MPI_UNSIGNED,0,MPI_COMM_WORLD); //Se reparte entre los procesos
 
         convergio = true;
             
         for(i=0;(i<N/P)||!convergio;i++){
-            convergio = (fabs(refConv-vRes[i])<0.01);
+            convergio = (fabs(valorAComparar-vResP[i])<0.01);
         }
 
         MPI_Bcast(&convergio,1,MPI_UNSIGNED,0,MPI_COMM_WORLD); //Actualiza variable "convergio" en todos los procesos
@@ -209,7 +215,7 @@ int main(int argc, char* argv[]){
     }
 
     if(myrank == 0){
-        printf("Converge a %.2f en %.4f segundos",buf[0],dwalltime()-timetick);
+        printf("Converge a %.2f en %.4f segundos",valorAComparar,dwalltime()-timetick);
     }
 
 }
