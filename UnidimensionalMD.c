@@ -151,9 +151,13 @@ int main(int argc, char* argv[]){
 
     timetick = dwalltime();    
 
+    //Send para los valores de frontera es mas eficiente.
+    //Scatterv al principio y send para mandar los elementos de frontera.
+    //MPI allreduce para convergencia
     while(!convergio){
         int i;
 
+        //sacar del while
         MPI_Scatterv(vSec,reparto,despl,MPI_FLOAT,vProm,N,MPI_FLOAT,0,MPI_COMM_WORLD);
 
         //MPI_Scatter(vSec,N,MPI_FLOAT,vProm,N,MPI_FLOAT,0,MPI_COMM_WORLD); //Sustituir con Scatterv
@@ -172,24 +176,25 @@ int main(int argc, char* argv[]){
             vResP[0] = (vProm[0]+vProm[1]+vProm[2])*unTercio;
         }
 
-        if(myrank < P){
+        if(myrank < P-1){
 
             //Si se trata de un proceso sin esquina derecha
-            vResP[N/P] = (vProm[N/P-1]+vProm[N/P]+vProm[N/P+1])*unTercio;
+            vResP[(N/P)-1] = (vProm[N/P-1]+vProm[N/P]+vProm[N/P+1])*unTercio;
         }
-        else if(myrank == P){
+        else if(myrank == P-1){
 
             //Si se trata del proceso P, que tiene la esquina derecha
-            vResP[N/P] = (vProm[N/P-1]+vProm[N/P])*0.5;
+            vResP[(N/P)-1] = (vProm[N/P-1]+vProm[N/P])*0.5;
         }
         
         MPI_Barrier(MPI_COMM_WORLD);
 
+        //Un solo gather al final de la convergencia. El scatter y gather se hacen solamente una vez
         MPI_Gather(vResP,N/P,MPI_FLOAT,vSec,N,MPI_FLOAT,0,MPI_COMM_WORLD);
 
         valorAComparar = vSec[0]; //Se obtiene el promedio de la posición 0 para comparar
 
-        MPI_Bcast(&valorAComparar,1,MPI_UNSIGNED,0,MPI_COMM_WORLD); //Se reparte entre los procesos
+        MPI_Bcast(&valorAComparar,1,MPI_FLOAT,0,MPI_COMM_WORLD); //Se reparte entre los procesos
 
         convergio = true;
             
@@ -210,6 +215,8 @@ int main(int argc, char* argv[]){
             MPI_Bcast(&convergio,1,MPI_UNSIGNED,0,MPI_COMM_WORLD); //Actualiza variable "convergio" en todos los procesos
         }
         */
+
+       //MPI_C_BOOL exist e
         
         MPI_Barrier(MPI_COMM_WORLD);
     }
