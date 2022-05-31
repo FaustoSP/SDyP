@@ -16,13 +16,11 @@ double dwalltime()
 }
 /****************************************************************/
 
-//TODO: optimizar inicialización de la matriz (j primero, creo?)
 //Inicializa una matriz
 float* inicializarMatriz(float* m,unsigned long N){
     for(int i=0;i<N;i++){
         for(int j=0;j<N;j++){
             m[i*N+j]=((float)rand())/(float)RAND_MAX;
-            //printf("m[%i,%i]: %.2f\n", i, j, m[i*N+j]);
         }
     }
     return m;
@@ -44,7 +42,7 @@ int main(int argc, char* argv[]){
     float* mPar;
     float* mParConvergido;
 
-    int i, j, iteraciones = 0;
+    int i, j;
     bool convergio = false;
     unsigned long N = atol(argv[1]);
     unsigned long numBytes = sizeof(float)*N*N;
@@ -73,7 +71,6 @@ int main(int argc, char* argv[]){
 
     //Primero se resuelve el problema con la estrategia secuencial
     while(!convergio){
-        iteraciones++;
 
         //La posicion de un valor de la matriz se calcula como i*N+j
 
@@ -163,12 +160,9 @@ int main(int argc, char* argv[]){
         //Se evalúa si todos los valores del vector convergieron.
         convergio = true;
         valorAComparar = mSecConvergido[0];
-        for(int i=1;i<N*N & convergio;i++){
-            //printf("m[%i]: %.2f\n",i*N+j, mSecConvergido[i*N+j]);
-            //mSec[i*N+j] = mSecConvergido[i*N+j];
+        for(int i=1;i<N*N;i++){
             //Si algún valor no estuviera por debajo del límite de precisión, se copia el valor del vector actual al original
-            //printf("m[%lu]: %.2f\n",i*N+j, fabs(mSecConvergido[0] - mSecConvergido[i*N+j]));
-            if(!(fabs(valorAComparar - mSecConvergido[i])<0.01)){
+            if(!(fabs(valorAComparar - mSecConvergido[i])<0.01) & convergio){
                 convergio = false;
                 swap = mSec;
                 mSec = mSecConvergido;
@@ -176,14 +170,13 @@ int main(int argc, char* argv[]){
             }
         }
     }
-    printf("Usando la estrategia secuencial en dos dimensiones, convergio al valor: %.2f en %i iteraciones que tomaron %f segundos\n", mSecConvergido[0], iteraciones, dwalltime() - timetick);
+    printf("Usando la estrategia secuencial en dos dimensiones, convergio al valor: %.2f en %f segundos\n", mSecConvergido[0], dwalltime() - timetick);
 
     //Ahora se utiliza la estrategia paralela.
     convergio = false;
-    iteraciones = 0;
 
+    timetick = dwalltime();
     while(!convergio){
-        iteraciones++;
 
         //La posicion de un valor de la matriz se calcula como i*N+j
 
@@ -191,6 +184,7 @@ int main(int argc, char* argv[]){
         #pragma omp parallel private(i,j) shared(mPar, mParConvergido)
         {
             //Esquina superior izquierda (0,0).
+            //Quiza seria mas eficiente unificar todas estas secciones en un solo omp single, pero se testeo y no se notaron cambios relevantes en el tiempo de ejecucion.
             #pragma omp single
             {
                 mParConvergido[0] = ((
@@ -295,14 +289,8 @@ int main(int argc, char* argv[]){
             }
 
             #pragma omp for reduction(&& : convergio)
-            //for(int i=1;i<N*N & convergio;i++) tira invalid controller predicate con pragma omp
-            //tampoco puedo usar un break
             for(int i=1;i<N*N; i++){
-                //printf("m[%i]: %.2f\n",i*N+j, mParConvergido[i*N+j]);
-                //mPar[i*N+j] = mParConvergido[i*N+j];
-                //Si algún valor no estuviera por debajo del límite de precisión, se copia el valor del vector actual al original
-                //printf("m[%lu]: %.2f\n",i*N+j, fabs(mParConvergido[0] - mParConvergido[i*N+j]));
-                if(!(fabs(valorAComparar - mParConvergido[i])<0.01)){
+                if(!(fabs(valorAComparar - mParConvergido[i])<0.01) & convergio){
                     convergio = false;
                     swap = mPar;
                     mPar = mParConvergido;
@@ -311,7 +299,7 @@ int main(int argc, char* argv[]){
             }
         }
     }
-    printf("Usando la estrategia paralela en dos dimensiones, convergio al valor: %.2f en %i iteraciones que tomaron %f segundos\n", mParConvergido[0], iteraciones, dwalltime() - timetick);
+    printf("Usando la estrategia paralela en dos dimensiones, convergio al valor: %.2f en %f segundos\n", mParConvergido[0], dwalltime() - timetick);
 
 
     return 0;
