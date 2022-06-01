@@ -109,7 +109,7 @@ int main(int argc, char* argv[]){
     }
 
     //Procesamiento paralelo con MPI
-
+    
     convergio = false;
     float *subVectorPar;
     float *vResP;
@@ -126,6 +126,10 @@ int main(int argc, char* argv[]){
     //Barrera para asegurarse de que todos los procesos esperen a que 0 termine de ejecutar el algoritmo secuencial.
     MPI_Barrier(MPI_COMM_WORLD);
 
+    //Una version original del codigo poseia varias barreras dentro de la ejecucion paralela. Se descubrio que no solamente estas eran innecesarias,
+    //si no que tambien casi duplicaban el tiempo de ejecucion. Eliminandolas dichas barreras se logro reducir el tiempo considerablemente
+    //Esto es ocultamiento de latencia, ya que los procesos pueden seguir con el procesamiento de sus datos sin tener que esperar a que los otros terminen sus comunicaciones.
+
     int cantidadDeElementosPorSubVector = ((int)N/(int)P);
     printf("Soy el proceso nro %i\n",myrank);
 
@@ -138,9 +142,12 @@ int main(int argc, char* argv[]){
         tComunicacion = tComunicacion + (dwalltime() - timetickCom);
     }
 
-
+    
     while(!convergio){
         iteraciones++;
+
+        //Se considero utilizar un scatter y un gather por cada loop de iteracion, sin embargo, se descubrio que dicha estrategia es ineficiente.
+        //Se decidio entonces utilizar una cadena de sends y recv para enviar solamente los valores borde necesarios
 
 	    //Cada proceso le manda su ultimo valor al siguiente, en orden para asegurarse que no ocurran deadlocks
         if(myrank == 0){
@@ -210,7 +217,6 @@ int main(int argc, char* argv[]){
         convergioLocal = true;
         //Dado que para todos los procesos menos el 0 el primer valor de su subvector no necesariamente es igual al de comparacion, se deben chequear todos.
         for(i=0;i<cantidadDeElementosPorSubVector;i++){
-            //printf("Soy el proceso %i, loop de conv nro %i\n",myrank,i);
             subVectorPar[i]=vResP[i];
             if(!(fabs(valorAComparar-vResP[i])<0.01) & convergioLocal){
                 convergioLocal = false;
@@ -226,7 +232,6 @@ int main(int argc, char* argv[]){
         }
         
     }
-    //MPI_Scatter(vPar,N/P,MPI_FLOAT,subVectorPar,N/P,MPI_FLOAT,0,MPI_COMM_WORLD);
     if(myrank == 0){
         timetickCom = dwalltime();
     }

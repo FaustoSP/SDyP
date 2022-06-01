@@ -181,10 +181,13 @@ int main(int argc, char* argv[]){
         //La posicion de un valor de la matriz se calcula como i*N+j
 
         //Primero se calcula el valor de las esquinas. Notese que le indice maximo para cada variable es N-1, no N.
+        //Idem a la version unidimensional, scheduler estatico funciona mejor para este problema, y no se observo que shared(...) tenga un impacto medible en el tiempo de ejecucion
         #pragma omp parallel private(i,j) shared(mPar, mParConvergido)
         {
             //Esquina superior izquierda (0,0).
             //Quiza seria mas eficiente unificar todas estas secciones en un solo omp single, pero se testeo y no se notaron cambios relevantes en el tiempo de ejecucion.
+            //Esto probablemente se deba a que los distintos procesos se solapan en la ejecucion de su single, lo cual genera un ocultamiento de latencia que contraresta el efecto negativo de las barreras implicitas
+            //Tambien vale aclarar que si se concentraran todos las secciones singles en una sola, un solo proceso tendría que ejecutar toda esa seccion, en ves de repartirse entre varios.
             #pragma omp single
             {
                 mParConvergido[0] = ((
@@ -288,6 +291,7 @@ int main(int argc, char* argv[]){
                 valorAComparar = mParConvergido[0];
             }
 
+            //Igual quen unidimensional, se utiliza un reduce
             #pragma omp for reduction(&& : convergio)
             for(int i=1;i<N*N; i++){
                 if(!(fabs(valorAComparar - mParConvergido[i])<0.01) & convergio){

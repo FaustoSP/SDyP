@@ -17,7 +17,6 @@ double dwalltime()
 }
 /****************************************************************/
 
-//TODO: optimizar inicialización de la matriz (j primero, creo?)
 //Inicializa una matriz
 float* inicializarMatriz(float* m,unsigned long N){
     for(int i=0;i<N;i++){
@@ -31,7 +30,7 @@ float* inicializarMatriz(float* m,unsigned long N){
 
 int main(int argc, char* argv[]){
 
-    //Se comprueba que se hayan pasado la cantidad correcta de parámetros de entrada. Evita que tire un coredump en caso de que se corra mal el script. 
+    //Se comprueba que se hayan pasado la cantidad correcta de parametros de entrada. Evita que tire un coredump en caso de que se corra mal el script. 
     if ((argc != 3) || (atoi(argv[1]) <= 0) || (atoi(argv[1]) <= 0)){
         printf("\nUsar: %s N T\n N: Dimension del vector\n T: Cantidad de procesos\n", argv[0]);
         exit(1);
@@ -65,7 +64,6 @@ int main(int argc, char* argv[]){
         printf("Se ejecuta el algoritmo de convergencia para N = %i P = %i\n",N,P);
         printf("----------------------------------------------------------\n");
 
-        //Se inicializan las matrices
         mSec=(float*)malloc(numBytes);
         mSecConvergido=(float*)malloc(numBytes);
         mPar=(float*)malloc(numBytes);
@@ -261,6 +259,9 @@ int main(int argc, char* argv[]){
             tComunicacion = tComunicacion + (dwalltime() - timetickCom);
         }
 
+        //Notese que cada seccion de calculo es independiente de la otro, por lo cual los procesos pueden "adelantarse" el uno al otro sin problemas
+        //Esto nos evita tener que sincronizar usando barreras, lo cual empeora mucho el tiempo de ejecucion.
+
         //Se procesa de distinta manera, de acuerdo a si el elemento es una esquina, borde o esta en el medio
         if(myrank == 0){
             //Esquina superior izquierda (0,0).
@@ -429,7 +430,7 @@ int main(int argc, char* argv[]){
             }
         }
         
-        valorAComparar = mResP[0]; //Cada proceso toma el primer elemento como el valor a comparar
+        valorAComparar = mResP[0];
 
         //Para que todos los subvectores convergan al mismo valor, hace falta mandar dicho valor a todos los procesos.
         if(myrank == 0){
@@ -443,7 +444,7 @@ int main(int argc, char* argv[]){
         subMatrizPar[0]=mResP[0];
         convergioLocal = true;
         
-
+        //Cada proceso verifica la convergencia de su subvector, pero todos al mismo valor que recibio del broadcast, para que la convergencia sea global.
         for(i=1;(i<(N/P)*N);i++){
             subMatrizPar[i]=mResP[i];
 

@@ -98,6 +98,7 @@ int main(int argc, char* argv[]){
     while(!convergio){
         
         //Scheduler estatico funciona mejor para este problema dado que las cargas de trabajo son identicas
+        //En teoria, eliminar shared(...) tendria que mejorar el tiempo, pero de acuerdo en nuestros experimentos si hay un cambio es lo suficientemente pequeño como para que no se note
         #pragma omp parallel private(i) shared(vPar, vParConvergido)
         {
             #pragma omp for
@@ -105,7 +106,8 @@ int main(int argc, char* argv[]){
                 vParConvergido[i] = ((vPar[i - 1] + vPar[i] + vPar[i+1]) * unTercio);
             }
             
-            //Se descubrio que envolver todo este codigo en una sola directiva single reduce el tiempo de ejecucion paralelo. Esto probablemente se deba al a barrera implicita al final de single
+            //Se descubrio que envolver todo este codigo en una sola directiva single reduce el tiempo de ejecucion paralelo. Esto probablemente se deba a la barrera implicita al final de single
+            //Dado que la verificación de convergencia utiliza valorAComparar, no se puede agregar un nowait a esta seccion sin arriesgar a que ocasione un error
             #pragma omp single
             {
                 vParConvergido[0] = ((vPar[0] + vPar[1]) * 0.5);
